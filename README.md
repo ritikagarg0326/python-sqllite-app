@@ -2,7 +2,7 @@
 
 [![CI/CD Pipeline](https://github.com/ritikagarg0326/docker-commands/actions/workflows/main.yml/badge.svg)](https://github.com/ritikagarg0326/docker-commands/actions/workflows/main.yml)
 
-A collection of Docker commands and examples for learning and automation.
+A collection of Docker commands and project examples for learning and automation.
 
 # 🐳 Docker Commands Cheatsheet
 
