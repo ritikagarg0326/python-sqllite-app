@@ -25,9 +25,9 @@ jobs:
       - name: Push Docker image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/flask-app:latest
 
-      - name: Run container for test
+            - name: Run container for test
         run: |
-          docker run -d -p 5050:5050 --name test-container flask-app
+          docker run -d -p 5050:5050 --name test-container ${{ secrets.DOCKER_USERNAME }}/flask-app:latest
           sleep 10
           docker ps
           docker logs test-container
