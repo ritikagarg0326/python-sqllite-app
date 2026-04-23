@@ -1,4 +1,4 @@
-name: Reusable ECR Pipeline
+name: Reusable ECR Pipeline (Secure)
 
 on:
   workflow_call:
@@ -23,15 +23,27 @@ on:
         required: true
 
 jobs:
-  build-and-push:
+  build-scan-push:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout
+      # 1️⃣ Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # AWS login
+      # 2️⃣ SAST - CodeQL (Static Code Analysis)
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+      # 3️⃣ Configure AWS
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -39,31 +51,41 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.aws-region }}
 
-      # ECR login
+      # 4️⃣ Login to ECR
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Build image
+      # 5️⃣ Build Docker Image
       - name: Build Docker image
         run: |
           docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.aws-region }}.amazonaws.com/${{ inputs.ecr-repository }}:latest .
 
-      # Push image
+      # 6️⃣ 🔐 Trivy Scan (FAIL on HIGH/CRITICAL)
+      - name: Scan Docker image with Trivy
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy image \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.aws-region }}.amazonaws.com/${{ inputs.ecr-repository }}:latest
+
+      # 7️⃣ Push to ECR (only if scan passed)
       - name: Push Docker image
         run: |
           docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.aws-region }}.amazonaws.com/${{ inputs.ecr-repository }}:latest
 
-      # Run container test
+      # 8️⃣ Run container test
       - name: Run container
         run: |
           docker run -d -p ${{ inputs.app-port }}:${{ inputs.app-port }} --name test-container \
           ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.aws-region }}.amazonaws.com/${{ inputs.ecr-repository }}:latest
           sleep 10
 
-      # Test endpoint
+      # 9️⃣ Test endpoint
       - name: Test endpoint
         run: curl http://localhost:${{ inputs.app-port }}
 
-      # Cleanup
+      # 🔟 Cleanup
       - name: Stop container
         run: docker stop test-container
