@@ -7,7 +7,7 @@ on:
 
 jobs:
   use-shared-pipeline:
-    uses: ./.github/workflows/reusable-ecr-pipeline.yml@main
+    uses: ./.github/workflows/reusable-ecr-pipeline.yml
 
     with:
       aws-region: ap-south-1
