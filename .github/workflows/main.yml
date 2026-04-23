@@ -10,7 +10,7 @@ jobs:
     uses: ./.github/workflows/reusable-ecr-pipeline.yml
 
     with:
-      aws-region: ap-south-1
+      aws-region: us-east-1
       ecr-repository: flask-app
       app-port: "5050"
 
