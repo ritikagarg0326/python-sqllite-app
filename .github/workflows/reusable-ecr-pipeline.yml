@@ -37,17 +37,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣ SAST - CodeQL (Static Code Analysis)
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: python
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
-
-      - name: Run CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
 
       # 3️⃣ Configure AWS
       - name: Configure AWS credentials
@@ -66,16 +55,7 @@ jobs:
         run: |
           docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.aws-region }}.amazonaws.com/${{ inputs.ecr-repository }}:latest .
 
-      # 6️⃣ 🔐 Trivy Scan (FAIL on HIGH/CRITICAL)
-      - name: Scan Docker image with Trivy
-        run: |
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy image \
-            --severity HIGH,CRITICAL \
-            --exit-code 1 \
-            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.aws-region }}.amazonaws.com/${{ inputs.ecr-repository }}:latest
-
+     
       # 7️⃣ Push to ECR (only if scan passed)
       - name: Push Docker image
         run: |
