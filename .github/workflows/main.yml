@@ -5,6 +5,13 @@ on:
     branches:
       - main
 
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+
 jobs:
   use-shared-pipeline:
     uses: ./.github/workflows/reusable-ecr-pipeline.yml
