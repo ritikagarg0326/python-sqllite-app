@@ -1,0 +1,14 @@
+replicaCount: 1
+
+image:
+  repository: vero026/flask-app
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: NodePort
+  port: 80
+  nodePort: 30007
+
+container:
+  port: 5050
