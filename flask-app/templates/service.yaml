@@ -8,5 +8,4 @@ spec:
     app: flask-app
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.container.port }}
-      nodePort: {{ .Values.service.nodePort }}
+      targetPort: 5050
