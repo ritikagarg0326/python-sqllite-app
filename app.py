@@ -1,38 +1,50 @@
 from flask import Flask, render_template, request
-import sqlite3
+import pymysql
+import os
 
 app = Flask(__name__)
 
-# Function to connect to the database
+# 🔥 Database connection (RDS)
 def get_db_connection():
-    conn = sqlite3.connect('data.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+    return pymysql.connect(
+        host=os.environ["DB_HOST"],
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASS"],
+        database="mydb",
+        cursorclass=pymysql.cursors.DictCursor
+    )
 
+# 🔥 Home page
 @app.route('/')
 def index():
     conn = get_db_connection()
-    users = conn.execute('SELECT * FROM users').fetchall()
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM users')
+    users = cursor.fetchall()
     conn.close()
     return render_template('index.html', users=users)
 
+# 🔥 Add user
 @app.route('/add', methods=['POST'])
 def add_user():
     name = request.form['name']
     conn = get_db_connection()
-    conn.execute('INSERT INTO users (name) VALUES (?)', (name,))
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO users (name) VALUES (%s)', (name,))
     conn.commit()
     conn.close()
     return 'User added successfully!'
 
+# 🔥 Delete user
 @app.route('/delete/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
     conn = get_db_connection()
-    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM users WHERE id = %s', (user_id,))
     conn.commit()
     conn.close()
     return 'User deleted successfully!'
 
-
+# 🔥 Run app
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5050)
