@@ -1,8 +1,12 @@
 from flask import Flask, render_template, request
 import pymysql
 import os
+from dotenv import load_dotenv
 
 app = Flask(__name__)
+
+# 🔐 Load env variables
+load_dotenv()
 
 # 🔥 Database connection (RDS)
 def get_db_connection():
@@ -10,10 +14,10 @@ def get_db_connection():
         host=os.environ["DB_HOST"],
         user=os.environ["DB_USER"],
         password=os.environ["DB_PASS"],
-        database="mydb",
+        database=os.environ["DB_NAME"],  # ✅ FIXED
         cursorclass=pymysql.cursors.DictCursor
     )
-
+print("DB_HOST =", os.environ.get("DB_HOST"))
 # 🔥 Home page
 @app.route('/')
 def index():
@@ -47,4 +51,4 @@ def delete_user(user_id):
 
 # 🔥 Run app
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5050)
+    app.run(host="0.0.0.0", port=5050, debug=True)
