@@ -1,77 +1,206 @@
-name: Reusable ECR Pipeline (Secure)
+name: Flask DevSecOps CI/CD Pipeline
 
 on:
-  workflow_call:
-    inputs:
-      aws-region:
-        required: true
-        type: string
-      ecr-repository:
-        required: true
-        type: string
-      app-port:
-        required: false
-        default: "5050"
-        type: string
-    
-    secrets:
-      AWS_ACCESS_KEY_ID:
-        required: true
-      AWS_SECRET_ACCESS_KEY:
-        required: true
-      AWS_ACCOUNT_ID:
-        required: true
+  push:
+    branches:
+      - main
 
 permissions:
-  actions: read
   contents: read
   security-events: write
 
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER: my-eks-cluster
+  ECR_REPOSITORY: flask-app
+  APP_PORT: 5050
 
 jobs:
-  build-scan-push:
+
+  ########################################
+  # 1️⃣ Infrastructure Pipeline
+  ########################################
+
+  terraform:
+    name: Terraform Infrastructure
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: terraform
+
     steps:
-      # 1️⃣ Checkout
-      - name: Checkout repository
+
+      # Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-
-      # 3️⃣ Configure AWS
-      - name: Configure AWS credentials
+      # Configure AWS Credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ inputs.aws-region }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      # 4️⃣ Login to ECR
-      - name: Login to ECR
+      # Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Terraform Init
+      - name: Terraform Init
+        run: terraform init
+
+      # Terraform Format Check
+      - name: Terraform Format
+        run: terraform fmt -check
+
+      # Terraform Validate
+      - name: Terraform Validate
+        run: terraform validate
+
+      # Terraform Plan
+      - name: Terraform Plan
+        run: terraform plan
+
+      # Terraform Apply
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+  ########################################
+  # 2️⃣ Build / Scan / Push Docker
+  ########################################
+
+  docker:
+    name: Build Scan Push Docker
+    runs-on: ubuntu-latest
+
+    needs: terraform
+
+    steps:
+
+      # Checkout Code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Configure AWS
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Login ECR
+      - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 5️⃣ Build Docker Image
-      - name: Build Docker image
+      # Build Docker Image
+      - name: Build Docker Image
         run: |
-          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.aws-region }}.amazonaws.com/${{ inputs.ecr-repository }}:latest .
+          docker build -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }} .
 
-     
-      # 7️⃣ Push to ECR (only if scan passed)
-      - name: Push Docker image
+      # Trivy Security Scan
+      - name: Scan Docker Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      # Push Docker Image
+      - name: Push Docker Image
         run: |
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.aws-region }}.amazonaws.com/${{ inputs.ecr-repository }}:latest
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
-      # 8️⃣ Run container test
-      - name: Run container
+      # Run Container
+      - name: Run Docker Container
         run: |
-          docker run -d -p ${{ inputs.app-port }}:${{ inputs.app-port }} --name test-container \
-          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ inputs.aws-region }}.amazonaws.com/${{ inputs.ecr-repository }}:latest
-          sleep 10
+          docker run -d \
+          -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
+          --name flask-container \
+          ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
-      # 9️⃣ Test endpoint
-      - name: Test endpoint
-        run: curl http://localhost:${{ inputs.app-port }}
+          sleep 15
 
-      # 🔟 Cleanup
-      - name: Stop container
-        run: docker stop test-container
+      # Health Check
+      - name: Test Application
+        run: |
+          curl http://localhost:${{ env.APP_PORT }}
+
+      # Cleanup
+      - name: Cleanup Container
+        if: always()
+        run: |
+          docker stop flask-container || true
+          docker rm flask-container || true
+
+  ########################################
+  # 3️⃣ Deploy to EKS
+  ########################################
+
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+
+    needs: docker
+
+    steps:
+
+      # Checkout Code
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Configure AWS
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Install kubectl
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      # Install Helm
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      # Update kubeconfig
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+          --region ${{ env.AWS_REGION }} \
+          --name ${{ env.EKS_CLUSTER }}
+
+      # Create Kubernetes Secret
+      - name: Create DB Secret
+        run: |
+          kubectl create secret generic db-secret \
+          --from-literal=DB_HOST=${{ secrets.DB_HOST }} \
+          --from-literal=DB_USER=${{ secrets.DB_USER }} \
+          --from-literal=DB_PASS=${{ secrets.DB_PASS }} \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+      # Deploy Helm Chart
+      - name: Helm Deploy
+        run: |
+          helm upgrade --install flask-app ./helm-chart \
+          --set image.repository=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }} \
+          --set image.tag=${{ github.sha }}
+
+      # Verify Deployment
+      - name: Verify Pods
+        run: |
+          kubectl get pods
+          kubectl get svc
+          kubectl get ingress
+
+      # Rollout Status
+      - name: Check Rollout
+        run: |
+          kubectl rollout status deployment/flask-app
