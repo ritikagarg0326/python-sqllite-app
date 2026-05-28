@@ -86,6 +86,6 @@ Flask
 MySQL
 AWS RDS
 Docker
-Kubernetes
+Kubernetes with node affinity rule
 Helm
 AWS EKS
