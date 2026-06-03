@@ -38,5 +38,34 @@ services:
       DB_PASS: admin123
       DB_NAME: mydb
 
+  prometheus:
+    image: prom/prometheus:latest
+
+    container_name: prometheus
+
+    ports:
+      - "9090:9090"
+
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+    depends_on:
+      - flask-app
+
+  grafana:
+    image: grafana/grafana:latest
+
+    container_name: grafana
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      - prometheus
+
+    volumes:
+      - grafana-data:/var/lib/grafana
+
 volumes:
   mysql-data:
+  grafana-data:
