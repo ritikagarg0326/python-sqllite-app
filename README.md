@@ -89,3 +89,5 @@ Docker
 Kubernetes with node affinity rule
 Helm
 AWS EKS
+promtheous
+grafana
