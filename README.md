@@ -91,3 +91,8 @@ Helm
 AWS EKS
 promtheous
 grafana
+flask==3.1.3
+pymysql
+python-dotenv
+pymongo
+prometheus-flask-exporter
