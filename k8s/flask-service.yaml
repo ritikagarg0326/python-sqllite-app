@@ -7,6 +7,5 @@ spec:
   selector:
     app: flask-app
   ports:
-    - port: 80
-      targetPort: 5050
-      protocol: TCP
+  - port: 80
+    targetPort: 5050
