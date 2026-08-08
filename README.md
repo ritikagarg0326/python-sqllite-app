@@ -81,6 +81,9 @@ Helm Chart Deployment
 <img src="images/eks-cluster-helm-chart-deployed.png" width="500"/> <img src="images/helm-chart-eks.png" width="500"/>
 
 
+used promtail for logging
+
+
 Tech Stack
 Flask
 MySQL
