@@ -82,7 +82,7 @@ def delete_user(user_id):
     conn.commit()
     conn.close()
 
-    return '🗑️ User deleted successfully!'
+    return 'User deleted successfully!'
 
 # 🔥 Run app
 if __name__ == '__main__':
