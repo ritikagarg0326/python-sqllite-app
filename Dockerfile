@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 
 COPY . .
 
-# Create user
+# Create user in docker container
 RUN useradd -m appuser
 
 # 🔥 FIX: set permissions BEFORE switching user
