@@ -19,7 +19,7 @@ RUN useradd -m appuser
 RUN chown -R appuser:appuser /app && \
     chmod -R 775 /app
 
-# Switch user
+# Switch userto app user
 USER appuser
 
 EXPOSE 5050
